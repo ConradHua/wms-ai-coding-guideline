@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
+const DISPLAY_NAME = 'WMS AI Coding Guideline';
 const { renderAgent } = require(path.join(
   ROOT,
   'skills',
@@ -43,11 +44,32 @@ function buildManifests(meta) {
       skills: './skills/',
       agents: './plugins/cursor/agents/',
     }),
+    '.cursor-plugin/marketplace.json': formatJson({
+      name: meta.name,
+      displayName: DISPLAY_NAME,
+      owner: meta.author,
+      metadata: {
+        description: meta.description,
+        version: meta.version,
+      },
+      plugins: [
+        {
+          name: meta.name,
+          source: '.',
+          description: meta.description,
+          version: meta.version,
+          author: meta.author,
+          license: meta.license,
+          keywords: meta.keywords,
+          category: 'Developer Tools',
+        },
+      ],
+    }),
     '.codex-plugin/plugin.json': formatJson({
       ...common,
       skills: './skills/',
       interface: {
-        displayName: 'WMS AI Coding Guideline',
+        displayName: DISPLAY_NAME,
         shortDescription: 'WMS domain modeling, security hardening, and cross-platform workspace setup.',
         category: 'Developer Tools',
       },

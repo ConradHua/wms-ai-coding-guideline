@@ -30,6 +30,25 @@ function verifyGeneratedSync(meta) {
   }
 }
 
+function verifyCursorMarketplace(meta) {
+  const marketplacePath = path.join(ROOT, '.cursor-plugin', 'marketplace.json');
+  const marketplace = JSON.parse(fs.readFileSync(marketplacePath, 'utf8'));
+  assert.equal(marketplace.name, meta.name);
+  assert.equal(marketplace.owner.name, meta.author.name);
+  assert.ok(Array.isArray(marketplace.plugins) && marketplace.plugins.length === 1);
+
+  const entry = marketplace.plugins[0];
+  assert.equal(entry.name, meta.name);
+  assert.equal(entry.source, '.');
+
+  const pluginManifestPath = path.join(ROOT, entry.source, '.cursor-plugin', 'plugin.json');
+  assert.equal(path.resolve(pluginManifestPath), path.join(ROOT, '.cursor-plugin', 'plugin.json'));
+  const pluginManifest = JSON.parse(fs.readFileSync(pluginManifestPath, 'utf8'));
+  assert.equal(pluginManifest.name, entry.name);
+  assert.ok(fs.existsSync(path.join(ROOT, pluginManifest.skills)));
+  assert.ok(fs.existsSync(path.join(ROOT, pluginManifest.agents)));
+}
+
 function verifySkills(meta) {
   for (const skillRel of meta.skills) {
     const skillDir = path.join(ROOT, skillRel);
@@ -200,6 +219,7 @@ function verifyHooks() {
 function main() {
   const meta = loadMeta();
   verifyGeneratedSync(meta);
+  verifyCursorMarketplace(meta);
   verifySkills(meta);
   verifyAgents(meta);
   verifyInstructions(meta);
