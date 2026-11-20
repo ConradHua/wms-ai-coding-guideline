@@ -1,0 +1,37 @@
+{
+  "name": "wms-ai-coding-guideline",
+  "version": "1.0.0",
+  "description": "Cross-platform WMS AI coding plugin providing domain modeling, security hardening, workspace setup, domain development instructions, review agents, and governance audit hooks for GitHub Copilot, Cursor, and Codex.",
+  "license": "MIT",
+  "author": {
+    "name": "WMS Engineering"
+  },
+  "keywords": [
+    "wms",
+    "sap-rfc",
+    "oracle",
+    "rest-api",
+    "domain-modeling",
+    "security",
+    "governance"
+  ],
+  "platforms": [
+    "copilot",
+    "cursor",
+    "codex"
+  ],
+  "skills": [
+    "skills/wms-develop-setup",
+    "skills/domain-modeling",
+    "skills/security-and-hardening"
+  ],
+  "agents": [
+    "code-reviewer",
+    "security-auditor"
+  ],
+  "instructions": [
+    "sap-rfc",
+    "oracle",
+    "rest-api"
+  ]
+}

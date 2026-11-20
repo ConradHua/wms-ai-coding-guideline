@@ -1,0 +1,3 @@
+interface:
+  display_name: "WMS Develop Setup"
+  short_description: "Configure WMS workspace instructions, agents, and governance hooks"

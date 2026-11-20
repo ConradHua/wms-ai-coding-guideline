@@ -1,0 +1,53 @@
+{
+  "features": {
+    "threat-protection": {
+      "description": "Detect threats, require explicit confirmation and gate tool calls.",
+      "platforms": [
+        "copilot",
+        "cursor"
+      ],
+      "requires": [
+        "session-start",
+        "prompt",
+        "transformed",
+        "pre-tool"
+      ]
+    },
+    "prompt-redaction": {
+      "description": "Redact recognized secrets and personal data from model-facing prompts (GitHub Copilot only; Cursor hooks cannot rewrite prompt text).",
+      "platforms": [
+        "copilot"
+      ],
+      "requires": [
+        "transformed"
+      ]
+    },
+    "audit-log": {
+      "description": "Record session lifecycle, prompts and policy decisions.",
+      "platforms": [
+        "copilot",
+        "cursor"
+      ],
+      "requires": [
+        "session-start",
+        "prompt",
+        "transformed",
+        "turn-end",
+        "session-end"
+      ]
+    },
+    "tool-audit": {
+      "description": "Record tool calls, argument previews and outcomes.",
+      "platforms": [
+        "copilot",
+        "cursor"
+      ],
+      "requires": [
+        "pre-tool",
+        "post-tool",
+        "tool-failure"
+      ]
+    }
+  },
+  "note": "Optional feature inventory for setup workflows. Codex does not support governance-audit hooks."
+}
