@@ -1,6 +1,6 @@
 {
   "name": "wms-ai-coding-guideline",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cross-platform WMS AI coding plugin providing domain modeling, security hardening, workspace setup, domain development instructions, review agents, and governance audit hooks for GitHub Copilot, Cursor, and Codex.",
   "license": "MIT",
   "author": {

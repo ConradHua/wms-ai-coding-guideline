@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Cross-platform WMS AI coding plugin providing domain modeling, security hardening, workspace setup, domain development instructions, review agents, and governance audit hooks for GitHub Copilot, Cursor, and Codex.",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
       "name": "wms-ai-coding-guideline",
       "source": ".",
       "description": "Cross-platform WMS AI coding plugin providing domain modeling, security hardening, workspace setup, domain development instructions, review agents, and governance audit hooks for GitHub Copilot, Cursor, and Codex.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "WMS Engineering"
       },
