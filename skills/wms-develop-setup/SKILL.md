@@ -1,7 +1,7 @@
 ---
-
-## name: wms-develop-setup
+name: wms-develop-setup
 description: Set up the WMS development workspace by configuring AGENTS.md (communication guidelines, domain-modeling triggers, and optional domain instruction routing), preparing docs/adr/, optionally deploying selected domain development instructions (sap-rfc, oracle, rest-api) and custom review agents (code-reviewer, security-auditor) for GitHub Copilot, Cursor, or Codex, and optionally deploying selected governance-audit hooks for GitHub Copilot or Cursor. Use this skill when the user asks to initialize or configure WMS repository instructions, create agent.md or AGENTS.md, install domain-specific instructions (SAP RFC, Oracle, REST API), install governance-audit hooks, or add WMS review agents to a workspace.
+---
 
 # WMS Develop Setup
 
