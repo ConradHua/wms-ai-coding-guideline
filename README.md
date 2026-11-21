@@ -24,7 +24,7 @@ Cross-platform AI coding plugin for **GitHub Copilot**, **Cursor**, and **Codex*
 | Shared Skills (`skills/*/SKILL.md`) | Supported | Supported | Supported (`agents/openai.yaml`) |
 | Plugin Review Agents | `plugins/copilot/agents/*.agent.md` | `plugins/cursor/agents/*.md` | Deployed via `wms-develop-setup` (`.codex/agents/*.toml`) |
 | Domain Instructions (via `wms-develop-setup`) | `.github/instructions/*.instructions.md` + `AGENTS.md` | `.cursor/rules/*.mdc` + `AGENTS.md` | `docs/ai-instructions/*.md` + `AGENTS.md` |
-| Governance Audit Hooks (via `wms-develop-setup`) | `.github/hooks/governance-audit.json` (all 4 features) | `.cursor/hooks.json` (`threat-protection`, `audit-log`, `tool-audit`; no `prompt-redaction`) | Not supported (explicitly skipped) |
+| Governance Audit Hooks (via `wms-develop-setup`) | `.github/hooks/governance-audit.json` (all 5 features, including `license-check`) | `.cursor/hooks.json` (`threat-protection`, `audit-log`, `tool-audit`, `license-check`; no `prompt-redaction`) | Not supported (explicitly skipped) |
 
 Cursor's Add Marketplace import reads `.cursor-plugin/marketplace.json`. That catalog lists this repository's single plugin with `source: "."`, which resolves to the root `.cursor-plugin/plugin.json`.
 

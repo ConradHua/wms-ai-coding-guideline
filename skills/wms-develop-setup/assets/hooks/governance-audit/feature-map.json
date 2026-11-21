@@ -47,6 +47,16 @@
         "post-tool",
         "tool-failure"
       ]
+    },
+    "license-check": {
+      "description": "Scan newly added dependencies for blocked licenses (GPL/AGPL/etc.) at turn end; warn or block.",
+      "platforms": [
+        "copilot",
+        "cursor"
+      ],
+      "requires": [
+        "turn-end"
+      ]
     }
   },
   "note": "Optional feature inventory for setup workflows. Codex does not support governance-audit hooks."

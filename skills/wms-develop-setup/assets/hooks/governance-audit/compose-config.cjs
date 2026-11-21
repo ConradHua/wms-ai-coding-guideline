@@ -25,6 +25,7 @@ const PLATFORM_EVENTS = {
 };
 
 const SUPPORTED_PLATFORMS = Object.keys(PLATFORM_EVENTS);
+const LICENSE_MODES = new Set(['warn', 'block']);
 
 function validatePlatform(platform) {
   if (!SUPPORTED_PLATFORMS.includes(platform)) {
@@ -57,8 +58,18 @@ function parseFeatures(raw, platform = 'copilot') {
   return validateFeatures(raw.split(',').map(name => name.trim()).filter(Boolean), platform);
 }
 
-function buildConfig(selected, scriptDir = 'hooks/governance-audit', platform = 'copilot') {
+function normalizeLicenseMode(mode, features) {
+  const selected = mode ?? 'warn';
+  if (!LICENSE_MODES.has(selected)) {
+    throw new Error('invalid license mode; expected warn or block');
+  }
+  if (!features.has('license-check')) return selected;
+  return selected;
+}
+
+function buildConfig(selected, scriptDir = 'hooks/governance-audit', platform = 'copilot', licenseMode = 'warn') {
   const features = validateFeatures(selected, platform);
+  const mode = normalizeLicenseMode(licenseMode, features);
   if (!/^[\w.-]+(?:\/[\w.-]+)*$/.test(scriptDir) || scriptDir.split('/').includes('..')) {
     throw new Error('expected a repository-relative script directory using forward slashes');
   }
@@ -66,21 +77,26 @@ function buildConfig(selected, scriptDir = 'hooks/governance-audit', platform = 
   const required = new Set([...features].flatMap(name => INVENTORY.features[name].requires));
   const hooks = {};
   const featureList = [...features].join(',');
+  const licenseSelected = features.has('license-check');
 
   for (const [kind, event] of Object.entries(events)) {
     if (!required.has(kind)) continue;
     const promptEvent = kind === 'prompt' || kind === 'transformed';
     if (platform === 'cursor') {
-      hooks[event] = [{
-        command: `node ${scriptDir}/governance.cjs ${kind} --platform cursor --features ${featureList}`,
-      }];
+      let command = `node ${scriptDir}/governance.cjs ${kind} --platform cursor --features ${featureList}`;
+      if (licenseSelected) command += ` --license-mode ${mode}`;
+      hooks[event] = [{ command }];
     } else {
+      const env = { GOVERNANCE_FEATURES: featureList };
+      if (licenseSelected) env.LICENSE_MODE = mode;
+      let timeoutSec = promptEvent ? 10 : 5;
+      if (licenseSelected && kind === 'turn-end') timeoutSec = 60;
       hooks[event] = [{
         type: 'command',
         command: `node ${scriptDir}/governance.cjs ${kind}`,
         cwd: '.',
-        env: { GOVERNANCE_FEATURES: featureList },
-        timeoutSec: promptEvent ? 10 : 5,
+        env,
+        timeoutSec,
       }];
     }
   }
@@ -90,6 +106,7 @@ function buildConfig(selected, scriptDir = 'hooks/governance-audit', platform = 
 function parseCliArgs(argv) {
   let platform = 'copilot';
   let scriptDir = 'hooks/governance-audit';
+  let licenseMode = 'warn';
   const features = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -99,17 +116,20 @@ function parseCliArgs(argv) {
     } else if (arg === '--script-dir') {
       scriptDir = argv[++i];
       if (!scriptDir) throw new Error('missing value for --script-dir');
+    } else if (arg === '--license-mode') {
+      licenseMode = argv[++i];
+      if (!licenseMode) throw new Error('missing value for --license-mode');
     } else {
       features.push(arg);
     }
   }
-  return { platform, scriptDir, features };
+  return { platform, scriptDir, features, licenseMode };
 }
 
 if (require.main === module) {
   try {
-    const { platform, scriptDir, features } = parseCliArgs(process.argv.slice(2));
-    process.stdout.write(JSON.stringify(buildConfig(features, scriptDir, platform), null, 2) + '\n');
+    const { platform, scriptDir, features, licenseMode } = parseCliArgs(process.argv.slice(2));
+    process.stdout.write(JSON.stringify(buildConfig(features, scriptDir, platform, licenseMode), null, 2) + '\n');
   } catch (error) {
     process.stderr.write(`Governance configuration: ${error.message}\n`);
     process.exitCode = 1;

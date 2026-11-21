@@ -11,11 +11,13 @@ const { LOG_DIR, preview, repository, createRecorder, recordError } = require('.
 const { scan } = require('./threat-scan.cjs');
 const { hash, instruction, acceptPrompt } = require('./request-control.cjs');
 const { parseFeatures } = require('./compose-config.cjs');
+const { checkLicenses, formatSummary } = require('./license-check.cjs');
 
 function parseCliOptions(argv) {
   const kind = argv[0];
   let platform = process.env.GOVERNANCE_PLATFORM ?? 'copilot';
   let featuresRaw = process.env.GOVERNANCE_FEATURES;
+  let licenseMode = process.env.LICENSE_MODE ?? 'warn';
   for (let i = 1; i < argv.length; i += 1) {
     if (argv[i] === '--platform') {
       platform = argv[++i];
@@ -23,14 +25,18 @@ function parseCliOptions(argv) {
     } else if (argv[i] === '--features') {
       featuresRaw = argv[++i];
       if (!featuresRaw) throw new Error('missing features');
+    } else if (argv[i] === '--license-mode') {
+      licenseMode = argv[++i];
+      if (!licenseMode) throw new Error('missing license mode');
     } else {
       throw new Error(`unexpected argument: ${argv[i]}`);
     }
   }
-  return { kind, platform, featuresRaw };
+  if (!['warn', 'block'].includes(licenseMode)) throw new Error('invalid license mode');
+  return { kind, platform, featuresRaw, licenseMode };
 }
 
-function run(kind, input, inputBytes, features, platform = 'copilot') {
+function run(kind, input, inputBytes, features, platform = 'copilot', licenseMode = 'warn') {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('invalid event');
   if (!['copilot', 'cursor'].includes(platform)) throw new Error('invalid platform');
   const detectThreats = features.has('threat-protection');
@@ -171,6 +177,23 @@ function run(kind, input, inputBytes, features, platform = 'copilot') {
           scan_error: detectThreats && Boolean(state.scan_error),
           pending_request_id: pending()?.request_id ?? null,
           reason: redact(String(input.reason ?? input.stopReason ?? input.stop_reason ?? input.status ?? '')) });
+        // License check runs only on turn-end (Copilot agentStop / Cursor stop), not session-end.
+        if (kind === 'turn-end' && features.has('license-check')) {
+          const licenseResult = checkLicenses({ mode: licenseMode });
+          process.stderr.write(`${formatSummary(licenseResult)}\n`);
+          if (audit) {
+            record('license_check', {
+              mode: licenseResult.mode,
+              checked: licenseResult.checked,
+              violation_count: licenseResult.violations.length,
+              violations: licenseResult.violations,
+              skipped: Boolean(licenseResult.skipped),
+            });
+          }
+          if (licenseResult.mode === 'block' && licenseResult.violations.length > 0) {
+            process.exitCode = 1;
+          }
+        }
         // Stop is a turn boundary, not a reason to clear pending confirmation.
         break;
       default: throw new Error('invalid hook');
@@ -197,7 +220,7 @@ if (require.main === module) {
       features = parseFeatures(options.featuresRaw, options.platform);
       const input = fs.readFileSync(0, 'utf8');
       event = JSON.parse(input);
-      process.stdout.write(JSON.stringify(run(kind, event, Buffer.byteLength(input), features, options.platform)) + '\n');
+      process.stdout.write(JSON.stringify(run(kind, event, Buffer.byteLength(input), features, options.platform, options.licenseMode)) + '\n');
     }
   } catch {
     if (features && [...features].some(feature => ['audit-log', 'tool-audit'].includes(feature))) recordError(event, kind);
