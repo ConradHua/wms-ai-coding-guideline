@@ -33,12 +33,15 @@ function buildManifests(meta) {
     keywords: meta.keywords,
   };
 
+  const copilotManifest = formatJson({
+    ...common,
+    skills: './skills/',
+    agents: './plugins/copilot/agents/',
+  });
+
   return {
-    '.github/plugin/plugin.json': formatJson({
-      ...common,
-      skills: './skills/',
-      agents: './plugins/copilot/agents/',
-    }),
+    'plugin.json': copilotManifest,
+    '.github/plugin/plugin.json': copilotManifest,
     '.cursor-plugin/plugin.json': formatJson({
       ...common,
       skills: './skills/',
