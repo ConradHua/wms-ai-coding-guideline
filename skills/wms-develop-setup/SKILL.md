@@ -40,26 +40,29 @@ Before creating or editing any files, track every applicable item below and reso
 
 ### How to ask
 
-A choice the user already stated in the request is answered. Send only the still-open choices.
+Reuse choices the user already stated. When the workspace root is unambiguous, state it and mark item 1 done. Otherwise offer the plausible roots as choices. Use the tools available in the current chat host. Item 6 controls where files will be deployed.
 
-For each still-open choice, call this session's structured question tool: the host tool that renders known options as selectable controls (single-select or multi-select) and waits for the answer. Match it by that behavior, under whatever name this host gives it.
+- **Cursor:** Call the built-in ask question tool (`AskQuestion`) when the current session exposes it. Use its multi-select control for items 3-6 when availabel. An asynchronous call can return before the user answers.
+- **VS Code GitHub Copilot Chat:** Call `askQuestions` (chat reference `#vscode/askQuestions`) when exposed. Set `multiSelect: true` for items 3–6. If the current Copilot harness exposes `ask_user` instead, use its supported form controls. A custom agent with a `tools` allowlist must include the question tool available in that harness.
+- **Codex Desktop:** Prefer `request_user_input` when the session exposes and permits it, typically in Plan mode (`/plan`). Otherwise use `request_user_input_async` if exposed and permitted. The synchronous tool takes 2–3 mutually exclusive choices and provides an `Other` field. The asynchronous tool accepts one suggested choice or a free-text reply. In the synchronous form, offer `Skip` and `Select all` as quick choices for items 3–6. Use the free-text field for a combination or for a single choice beyond the synchronous form's option limit.
 
-- The chat message states the one-line reason. The tool call carries every option.
-- One checklist choice per call. Wait for the answer before the next choice.
-- Items that allow any combination (3, 4, 5, 6) are multi-select and include an explicit skip option (`none`).
-- Yes/no confirmations and `LICENSE_MODE` (`warn` or `block`) are single-select.
-- Item 1: when `<workspace-root>` is already unambiguous, state the path and mark the item done. When more than one root is plausible, offer those folders as the options.
-- Item 7: the write-plan (paths, hook command, generated JSON, conflicts) stays in the chat message. The approve / revise decision goes through the structured question tool. Wait for that answer before writing any file.
-- When this session has no tool that renders selectable answers, ask the same options in chat and wait for the reply.
 
-An item is done only after the user has answered it.
+Reuse choices the user already stated. When the workspace root is unambiguous, state it and mark item 1 done. Otherwise offer the plausible roots as choices. Use the tools available in the current chat host. Item 6 controls where files will be deployed.
+
+- **Cursor:** Call the built-in ask question tool (`AskQuestion`) when the current session exposes it. Use its multi-select control for items 3–6 when available. An asynchronous call can return before the user answers.
+- **VS Code GitHub Copilot Chat:** Call `askQuestions` (chat reference `#vscode/askQuestions`) when exposed. Set `multiSelect: true` for items 3–6. If the current Copilot harness exposes `ask_user` instead, use its supported form controls. A custom agent with a `tools` allowlist must include the question tool available in that harness.
+- **Codex Desktop:** Prefer `request_user_input` when the session exposes and permits it, typically in Plan mode (`/plan`). Otherwise use `request_user_input_async` if exposed and permitted. The synchronous tool takes 2–3 mutually exclusive choices and provides an `Other` field. The asynchronous tool accepts one suggested choice or a free-text reply. In the synchronous form, offer `Skip` and `Select all` as quick choices for items 3–6. Use the free-text field for a combination or for a single choice beyond the synchronous form's option limit.
+
+Ask one open choice at a time. Use single-select for yes/no and `LICENSE_MODE` (`warn` or `block`). When a form cannot represent all valid answers, list all choices with numbers and accept a reply such as `1` or, for multi-select, `1, 3`. Offer `none` as an explicit skip for optional selections. A dismissed form, missing answer, or asynchronous acknowledgement leaves the item pending. Wait for the user's answer before advancing. If the native tool is unavailable, fails to display a usable form, or is restricted for that decision, present the same choices in chat and wait for a reply.
+
+For item 7, show the full write-plan in chat before asking the user to approve or revise it. Use the question tool if the session permits it for that decision. Require explicit approval of the displayed plan and a mode that permits edits before writing. Carry the checklist answers and approved plan forward if the user switches from planning to execution.
 
 - [ ] **1. Target workspace root**: Confirm `<workspace-root>` (workspace-only; never deploy globally).
 - [ ] **2. Base workspace setup (**`AGENTS.md` **+** `docs/adr/`**)**: Confirm creating or merging `Communication Guidelines` and `Domain Modeling` into `<workspace-root>/AGENTS.md` and preparing `<workspace-root>/docs/adr/` (without pre-creating an empty `GLOSSARY.md`).
 - [ ] **3. Optional domain development instructions**: Ask which development area(s) the user is currently focusing on (`sap-rfc`, `oracle`, `rest-api`, any combination, or none to skip).
 - [ ] **4. Optional** `governance-audit` **hooks (GitHub Copilot / Cursor + Node.js)**: Ask which features to enable (`threat-protection`, `prompt-redaction` [GitHub Copilot only], `audit-log`, `tool-audit`, `license-check`, or none to skip). If `license-check` is selected, also ask for `LICENSE_MODE` (`warn` or `block`).
 - [ ] **5. Optional custom review agents**: Ask which agents to deploy (`code-reviewer`, `security-auditor`, or none to skip).
-- [ ] **6. Target platform(s)** *(only if item 3, 4, or 5 selects at least one item; otherwise mark N/A)*: Ask which platform(s) to generate for (`GitHub Copilot`, `Cursor`, `Codex` — single or multiple). Note any unsupported hook capabilities for the chosen platform(s).
+- [ ] **6. Target platform(s)** *(only if item 3, 4, or 5 selects at least one item; otherwise mark N/A)*: Ask which platform(s) to generate for (`GitHub Copilot`, `Cursor`, `Codex` — single or multiple, or `none` to skip optional deployments). Note any unsupported hook capabilities for the chosen platform(s).
 - [ ] **7. Final write-plan approval**: Present the complete list of files/directories to create or modify (including generated `AGENTS.md` domain routing entries if any, hook commands, generated hook JSON preview, conflict/duplicate checks, and `.gitignore` prompt if audit logs are enabled) and wait for explicit user approval before writing.
 
 ## Workflow
@@ -83,7 +86,7 @@ An item is done only after the user has answered it.
    - **Custom review agents (Item 5):** Present both optional read-only agents so the user can pick any combination—or none to skip:
      - `code-reviewer`: Evaluates changes across correctness, readability, architecture, security, and performance before merge.
      - `security-auditor`: Performs security-focused code review, threat analysis, and hardening recommendations (OWASP Top 10 / LLM Top 10).
-   - **Target platform(s) (Item 6):** Only if Item 3, 4, or 5 selected at least one item, ask once which target platform(s) to deploy to (`GitHub Copilot`, `Cursor`, `Codex` — multiple allowed).
+   - **Target platform(s) (Item 6):** Only if Item 3, 4, or 5 selected at least one item, ask once which target platform(s) to deploy to (`GitHub Copilot`, `Cursor`, `Codex` — multiple allowed). If the user chooses `none`, omit optional deployments from the write-plan and skip those deployment steps.
 2. **Preview planned changes and obtain final approval (Checklist item 7).**
    - Summarize every file/directory to be created or modified:
      - `<workspace-root>/AGENTS.md` (including `Domain Development Instructions` routing table for selected domains, if any)
