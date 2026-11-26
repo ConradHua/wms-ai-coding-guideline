@@ -294,7 +294,7 @@ function checkLicenses(options = {}) {
   return { checked: results.length, violations, results, mode };
 }
 
-function formatSummary(result) {
+function formatSummary(result, { showModeHint = true } = {}) {
   if (result.skipped) return 'License check skipped.';
   if (result.checked === 0) return 'No new dependencies detected.';
   const lines = [
@@ -305,10 +305,12 @@ function formatSummary(result) {
   }
   if (result.violations.length) {
     lines.push(`Found ${result.violations.length} license violation(s).`);
-    if (result.mode === 'block') {
-      lines.push('Blocked: resolve license violations before committing.');
-    } else {
-      lines.push('Warn-only: set LICENSE_MODE=block to fail the hook on violations.');
+    if (showModeHint) {
+      if (result.mode === 'block') {
+        lines.push('Blocked: resolve license violations before committing.');
+      } else {
+        lines.push('Warn-only: set LICENSE_MODE=block to fail the hook on violations.');
+      }
     }
   } else {
     lines.push('All checked dependencies have compliant licenses.');

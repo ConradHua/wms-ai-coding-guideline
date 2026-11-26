@@ -10,7 +10,7 @@ const { redact } = require('./redact-prompt.cjs');
 const { LOG_DIR, preview, repository, createRecorder, recordError } = require('./audit-log.cjs');
 const { scan } = require('./threat-scan.cjs');
 const { hash, instruction, acceptPrompt } = require('./request-control.cjs');
-const { parseFeatures } = require('./compose-config.cjs');
+const { parseFeatures, SUPPORTED_PLATFORMS } = require('./compose-config.cjs');
 const { checkLicenses, formatSummary } = require('./license-check.cjs');
 
 function parseCliOptions(argv) {
@@ -36,9 +36,19 @@ function parseCliOptions(argv) {
   return { kind, platform, featuresRaw, licenseMode };
 }
 
+function codexToolDenial(reason) {
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: reason,
+    },
+  };
+}
+
 function run(kind, input, inputBytes, features, platform = 'copilot', licenseMode = 'warn') {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('invalid event');
-  if (!['copilot', 'cursor'].includes(platform)) throw new Error('invalid platform');
+  if (!SUPPORTED_PLATFORMS.includes(platform)) throw new Error('invalid platform');
   const detectThreats = features.has('threat-protection');
   const audit = features.has('audit-log');
   const toolAudit = features.has('tool-audit');
@@ -116,6 +126,13 @@ function run(kind, input, inputBytes, features, platform = 'copilot', licenseMod
         accept(input.prompt);
         if (platform === 'cursor') {
           output = { continue: true };
+        } else if (platform === 'codex' && detectThreats) {
+          let context;
+          const pendingRequest = pending();
+          if (pendingRequest) context = instruction(pendingRequest);
+          else if (state.active.confirmed) context = `用户已确认请求 ${state.active.request_id}，仅继续该请求。`;
+          else if (state.active.cancelled_request_id) context = `用户已取消请求 ${state.active.cancelled_request_id}，请停止该请求。`;
+          if (context) output = { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } };
         } else if (input.hook_event_name && pending()) {
           // userPromptSubmitted command output is ignored by the Copilot runtime.
           output = { systemMessage: instruction(state.pending) };
@@ -156,6 +173,8 @@ function run(kind, input, inputBytes, features, platform = 'copilot', licenseMod
         if (denied) {
           if (platform === 'cursor') {
             output = { permission: 'deny', user_message: reason, agent_message: reason };
+          } else if (platform === 'codex') {
+            output = codexToolDenial(reason);
           } else {
             output = { permissionDecision: 'deny', permissionDecisionReason: reason };
             // Local VS Code uses nested decisions; shared Copilot uses the top-level fields.
@@ -166,9 +185,10 @@ function run(kind, input, inputBytes, features, platform = 'copilot', licenseMod
       }
       case 'post-tool':
       case 'tool-failure':
+        // Codex emits PostToolUse for both successful and failed shell commands.
         if (toolAudit) record('tool_result', { tool_name: redact(String(input.toolName ?? input.tool_name ?? 'unknown')),
           tool_call_id: input.tool_use_id ?? null, arguments: preview(input.toolArgs ?? input.tool_input),
-          result: kind === 'tool-failure' ? 'reported_failure' : 'reported_success',
+          result: kind === 'tool-failure' ? 'reported_failure' : platform === 'codex' ? 'completed' : 'reported_success',
           error: kind === 'tool-failure' ? preview(input.error ?? input.error_message) : null });
         break;
       case 'turn-end':
@@ -177,10 +197,11 @@ function run(kind, input, inputBytes, features, platform = 'copilot', licenseMod
           scan_error: detectThreats && Boolean(state.scan_error),
           pending_request_id: pending()?.request_id ?? null,
           reason: redact(String(input.reason ?? input.stopReason ?? input.stop_reason ?? input.status ?? '')) });
-        // License check runs only on turn-end (Copilot agentStop / Cursor stop), not session-end.
+        // License checks run at the end of the turn.
         if (kind === 'turn-end' && features.has('license-check')) {
           const licenseResult = checkLicenses({ mode: licenseMode });
-          process.stderr.write(`${formatSummary(licenseResult)}\n`);
+          const summary = formatSummary(licenseResult, { showModeHint: platform !== 'codex' });
+          if (platform !== 'codex') process.stderr.write(`${summary}\n`);
           if (audit) {
             record('license_check', {
               mode: licenseResult.mode,
@@ -190,8 +211,16 @@ function run(kind, input, inputBytes, features, platform = 'copilot', licenseMod
               skipped: Boolean(licenseResult.skipped),
             });
           }
-          if (licenseResult.mode === 'block' && licenseResult.violations.length > 0) {
-            process.exitCode = 1;
+          if (licenseResult.violations.length > 0) {
+            if (platform === 'codex') {
+              output = { systemMessage: redact(summary) };
+              if (licenseMode === 'block' && input.stop_hook_active === false && !pending()) {
+                output.decision = 'block';
+                output.reason = 'WMS license check found prohibited dependencies. Ask the user how to proceed with the violations listed in the hook warning.';
+              }
+            } else if (licenseMode === 'block') {
+              process.exitCode = 1;
+            }
           }
         }
         // Stop is a turn boundary, not a reason to clear pending confirmation.
@@ -210,6 +239,7 @@ if (require.main === module) {
   let event;
   let features;
   let kind;
+  let platform;
   try {
     if (process.env.SKIP_GOVERNANCE_AUDIT === 'true') {
       process.stdout.write('{}\n');
@@ -217,17 +247,28 @@ if (require.main === module) {
     } else {
       const options = parseCliOptions(process.argv.slice(2));
       kind = options.kind;
-      features = parseFeatures(options.featuresRaw, options.platform);
+      platform = options.platform;
+      features = parseFeatures(options.featuresRaw, platform);
       const input = fs.readFileSync(0, 'utf8');
       event = JSON.parse(input);
-      process.stdout.write(JSON.stringify(run(kind, event, Buffer.byteLength(input), features, options.platform, options.licenseMode)) + '\n');
+      process.stdout.write(JSON.stringify(run(kind, event, Buffer.byteLength(input), features, platform, options.licenseMode)) + '\n');
     }
   } catch {
     if (features && [...features].some(feature => ['audit-log', 'tool-audit'].includes(feature))) recordError(event, kind);
     // Parser errors and stack traces may include secrets.
-    process.stderr.write('Governance: hook failed; no approval was issued. Check configuration, session ID, log permissions and state.\n');
+    const reason = 'Governance: hook failed; no approval was issued. Check configuration, session ID, log permissions and state.';
+    process.stderr.write(`${reason}\n`);
     if (kind === 'pre-tool' && features && !features.has('threat-protection')) {
       process.stdout.write('{}\n');
+    } else if (platform === 'codex') {
+      // Exit code 2 tells Codex to continue a Stop turn. Use explicit JSON for threat gating.
+      if (features?.has('threat-protection') && kind === 'pre-tool') {
+        process.stdout.write(`${JSON.stringify(codexToolDenial(reason))}\n`);
+      } else if (features?.has('threat-protection') && kind === 'prompt') {
+        process.stdout.write(`${JSON.stringify({ decision: 'block', reason })}\n`);
+      } else {
+        process.exitCode = 1;
+      }
     } else {
       process.exitCode = 2;
     }

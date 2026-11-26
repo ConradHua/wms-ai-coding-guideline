@@ -4,7 +4,8 @@
       "description": "Detect threats, require explicit confirmation and gate tool calls.",
       "platforms": [
         "copilot",
-        "cursor"
+        "cursor",
+        "codex"
       ],
       "requires": [
         "session-start",
@@ -14,7 +15,7 @@
       ]
     },
     "prompt-redaction": {
-      "description": "Redact recognized secrets and personal data from model-facing prompts (GitHub Copilot only; Cursor hooks cannot rewrite prompt text).",
+      "description": "Redact recognized secrets and personal data from model-facing prompts (GitHub Copilot only).",
       "platforms": [
         "copilot"
       ],
@@ -26,7 +27,8 @@
       "description": "Record session lifecycle, prompts and policy decisions.",
       "platforms": [
         "copilot",
-        "cursor"
+        "cursor",
+        "codex"
       ],
       "requires": [
         "session-start",
@@ -40,7 +42,8 @@
       "description": "Record tool calls, argument previews and outcomes.",
       "platforms": [
         "copilot",
-        "cursor"
+        "cursor",
+        "codex"
       ],
       "requires": [
         "pre-tool",
@@ -52,12 +55,13 @@
       "description": "Scan newly added dependencies for blocked licenses (GPL/AGPL/etc.) at turn end; warn or block.",
       "platforms": [
         "copilot",
-        "cursor"
+        "cursor",
+        "codex"
       ],
       "requires": [
         "turn-end"
       ]
     }
   },
-  "note": "Optional feature inventory for setup workflows. Codex does not support governance-audit hooks."
+  "note": "Optional feature inventory for setup workflows. Each platform registers the required events it exposes."
 }

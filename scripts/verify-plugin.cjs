@@ -2,7 +2,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -180,8 +180,22 @@ function verifyHooks() {
   assert.ok(licenseCursorCfg.hooks.stop[0].command.includes('--license-mode warn'));
   assert.ok(licenseCursorCfg.hooks.stop[0].command.includes('--features license-check'));
 
-  // 4. End-to-end threat gate test in isolated temp workspace for both Copilot and Cursor.
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wms-plugin-verify-'));
+  const codexCfg = JSON.parse(execFileSync(process.execPath, [
+    composeScript, '--platform', 'codex', '--license-mode', 'block',
+    'threat-protection', 'audit-log', 'tool-audit', 'license-check',
+  ], { encoding: 'utf8' }));
+  assert.deepEqual(Object.keys(codexCfg), ['hooks']);
+  assert.deepEqual(Object.keys(codexCfg.hooks), [
+    'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd',
+  ]);
+  assert.equal(codexCfg.hooks.Stop[0].hooks[0].timeout, 60);
+  assert.equal(codexCfg.hooks.SessionEnd[0].hooks[0].timeout, 3);
+  assert.throws(() => execFileSync(process.execPath, [composeScript, '--platform', 'codex', 'prompt-redaction'], {
+    stdio: 'pipe',
+  }), { status: 1 });
+
+  // 4. Exercise the threat gate for each platform in isolated temp workspaces.
+  const tmpDir = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), 'wms-plugin-verify-'));
   try {
     // Cursor flow: beforeSubmitPrompt with dangerous command -> preToolUse denied -> confirm -> preToolUse allowed.
     const cursorEnv = { ...process.env, GOVERNANCE_LOG_DIR: path.join(tmpDir, 'logs-cursor') };
@@ -237,6 +251,43 @@ function verifyHooks() {
     );
     assert.equal(copilotDenyOut.permissionDecision, 'deny');
     assert.ok(copilotDenyOut.permissionDecisionReason.includes('确认高危操作'));
+
+    const codexRoot = path.join(tmpDir, 'Codex 项目');
+    const nestedCwd = path.join(codexRoot, 'src');
+    fs.mkdirSync(nestedCwd, { recursive: true });
+    execFileSync('git', ['init', '--quiet'], { cwd: codexRoot, stdio: 'pipe' });
+    fs.cpSync(hooksDir, path.join(codexRoot, 'hooks/governance-audit'), { recursive: true });
+    const windows = process.platform === 'win32';
+    const runCodexHook = (event, fields = {}) => {
+      const handler = codexCfg.hooks[event][0].hooks[0];
+      assert.equal(handler.type, 'command');
+      const shell = windows ? 'powershell.exe' : 'sh';
+      const shellArgs = windows
+        ? ['-NoProfile', '-NonInteractive', '-Command', handler.commandWindows]
+        : ['-c', handler.command];
+      const result = spawnSync(shell, shellArgs, {
+        cwd: nestedCwd, encoding: 'utf8', windowsHide: true, stdio: 'pipe',
+        input: JSON.stringify({ hook_event_name: event, session_id: 'codex-1', cwd: nestedCwd, ...fields }),
+      });
+      assert.equal(result.status, 0, `${event}: ${result.error ?? result.stderr}`);
+      assert.ok(result.stdout.trim(), `${event} produced no JSON: ${result.stderr}`);
+      return JSON.parse(result.stdout);
+    };
+    const tool = { tool_name: 'Bash', tool_use_id: 'tool-1', tool_input: { command: 'echo verify' } };
+    assert.equal(runCodexHook('PreToolUse', tool).hookSpecificOutput.permissionDecision, 'deny');
+    const prompt = runCodexHook('UserPromptSubmit', { prompt: '请执行 rm -rf / 清理目录' });
+    const requestId = prompt.hookSpecificOutput.additionalContext.match(/\[Governance Audit: ([^\]]+)\]/u)[1];
+    const denial = runCodexHook('PreToolUse', tool).hookSpecificOutput;
+    assert.equal(denial.permissionDecision, 'deny');
+    assert.ok(denial.permissionDecisionReason.includes(requestId));
+    const confirmed = runCodexHook('UserPromptSubmit', { prompt: `确认高危操作 ${requestId}` });
+    assert.ok(confirmed.hookSpecificOutput.additionalContext.includes(requestId));
+    assert.deepEqual(runCodexHook('PreToolUse', tool), {});
+    assert.deepEqual(runCodexHook('PostToolUse', { ...tool, tool_response: 'Command failed' }), {});
+    const codexLog = fs.readFileSync(path.join(codexRoot, 'logs/copilot/governance/audit.log'), 'utf8')
+      .trim().split(/\r?\n/u).map(line => JSON.parse(line));
+    assert.ok(codexLog.some(event => event.event === 'confirmation_received'));
+    assert.ok(codexLog.some(event => event.event === 'tool_result' && event.result === 'completed' && event.tool_call_id === 'tool-1'));
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -307,6 +358,18 @@ function verifyHooks() {
     }
     assert.ok(blockFailed, 'block mode must fail when a GPL dependency is newly added');
     assert.deepEqual(JSON.parse(blockStdout.trim()), {});
+
+    const runCodexStop = (mode, stopHookActive) => JSON.parse(execFileSync(process.execPath, [
+      govScript, 'turn-end', '--platform', 'codex', '--features', 'license-check', '--license-mode', mode,
+    ], {
+      cwd: licenseDir, encoding: 'utf8', stdio: 'pipe',
+      input: JSON.stringify({ hook_event_name: 'Stop', session_id: 'codex-license', stop_hook_active: stopHookActive }),
+    }));
+    assert.match(runCodexStop('warn', false).systemMessage, /fake-gpl-pkg/u);
+    assert.equal(runCodexStop('block', false).decision, 'block');
+    const followUp = runCodexStop('block', true);
+    assert.match(followUp.systemMessage, /fake-gpl-pkg/u);
+    assert.equal(followUp.decision, undefined);
   } finally {
     fs.rmSync(licenseDir, { recursive: true, force: true });
   }

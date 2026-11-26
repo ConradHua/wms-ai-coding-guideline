@@ -22,6 +22,14 @@ const PLATFORM_EVENTS = {
     'turn-end': 'stop',
     'session-end': 'sessionEnd',
   },
+  codex: {
+    'session-start': 'SessionStart',
+    prompt: 'UserPromptSubmit',
+    'pre-tool': 'PreToolUse',
+    'post-tool': 'PostToolUse',
+    'turn-end': 'Stop',
+    'session-end': 'SessionEnd',
+  },
 };
 
 const SUPPORTED_PLATFORMS = Object.keys(PLATFORM_EVENTS);
@@ -82,25 +90,36 @@ function buildConfig(selected, scriptDir = 'hooks/governance-audit', platform = 
   for (const [kind, event] of Object.entries(events)) {
     if (!required.has(kind)) continue;
     const promptEvent = kind === 'prompt' || kind === 'transformed';
-    if (platform === 'cursor') {
-      let command = `node ${scriptDir}/governance.cjs ${kind} --platform cursor --features ${featureList}`;
-      if (licenseSelected) command += ` --license-mode ${mode}`;
-      hooks[event] = [{ command }];
-    } else {
+    let timeout = promptEvent ? 10 : 5;
+    if (licenseSelected && kind === 'turn-end') timeout = 60;
+    if (platform === 'copilot') {
       const env = { GOVERNANCE_FEATURES: featureList };
       if (licenseSelected) env.LICENSE_MODE = mode;
-      let timeoutSec = promptEvent ? 10 : 5;
-      if (licenseSelected && kind === 'turn-end') timeoutSec = 60;
       hooks[event] = [{
         type: 'command',
         command: `node ${scriptDir}/governance.cjs ${kind}`,
         cwd: '.',
         env,
-        timeoutSec,
+        timeoutSec: timeout,
       }];
+      continue;
     }
+
+    let command = `node ${scriptDir}/governance.cjs ${kind} --platform ${platform} --features ${featureList}`;
+    if (licenseSelected) command += ` --license-mode ${mode}`;
+    if (platform === 'cursor') {
+      hooks[event] = [{ command }];
+      continue;
+    }
+
+    hooks[event] = [{ hooks: [{
+      type: 'command',
+      command: `cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && ${command}`,
+      commandWindows: `$repoUp = git rev-parse --show-cdup 2>$null; if ($repoUp) { Set-Location -LiteralPath $repoUp -ErrorAction Stop }; ${command}; exit $LASTEXITCODE`,
+      timeout: kind === 'session-end' ? 3 : timeout,
+    }] }];
   }
-  return { version: 1, hooks };
+  return platform === 'codex' ? { hooks } : { version: 1, hooks };
 }
 
 function parseCliArgs(argv) {
