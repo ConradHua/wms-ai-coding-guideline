@@ -1,93 +1,174 @@
 # WMS AI Coding Guideline
 
-这是一套给 AI 用的 WMS 编码规矩，可以装在 **Cursor**、**GitHub Copilot**、**Codex** 上。装上插件，只是让 AI 认识这些技能。真正把规矩写进你的仓库，要靠下面这个技能。
+English | [中文](./README.zh-CN.md)
 
-更细的用法放在 [doc](./doc/) 文件夹。
+A set of WMS coding rules for AI assistants. It runs on **Cursor**, **GitHub Copilot**, and **Codex**. Installing the plugin only teaches the AI these skills. Writing those rules into your own repository is the job of `wms-develop-setup` below.
 
-## 最重要：wms-develop-setup
+## Install the plugin
 
-这是整个 guideline 的入口。它只配置**当前仓库**，不会改你电脑上的全局设置（例如 `~/.cursor`、`~/.copilot`）。
+Repository:
 
-它会先和你确认，再列出完整的写入计划。你明确同意之前，它不创建、不修改任何文件。已经有的内容会合并，不会悄悄覆盖。
+```text
+https://github.com/ConradHua/wms-ai-coding-guideline
+```
 
-### 它会做什么
+All three platforms follow the same idea: **add this repository as a marketplace or source, then install the** `wms-ai-coding-guideline` **plugin.**
 
-一定会准备这两样：
+### Cursor
 
-- `AGENTS.md`：默认用中文、先说结论；并写明什么时候该问你要不要做领域建模。
-- `docs/adr/`：留给以后的架构决定。空的词汇表不会提前建，等真有词要记时再写。
+1. Open Cursor plugin settings (Dashboard → Plugins, or Plugins / Marketplace in the IDE).
+2. Choose **Add Marketplace** / **Import from Repo** and paste the repository URL above.
+3. Cursor reads `.cursor-plugin/marketplace.json` and lists the plugin.
+4. Install `wms-ai-coding-guideline`.
 
-下面三项按你的选择安装，可以全要，也可以都不要：
+> Team Marketplace usually requires a Teams or Enterprise plan. If a personal account uses a different entry point, the goal is the same: import this repository as a marketplace, then install the plugin.
 
-| 你选的内容 | 写到哪里 |
+### GitHub Copilot (VS Code)
+
+Either path works:
+
+1. **Install directly.** Run `Chat: Install Plugin from Source` from the Command Palette, paste the repository URL, and confirm.
+2. **Add the marketplace first.** Run `Chat: Manage Plugin Marketplaces` → **Add Marketplace...**, paste the repository URL, then find and install `wms-ai-coding-guideline` under Customize / Plugins.
+
+If a trust prompt appears, check the source before you confirm. If the plugin does not show up, start a new Chat.
+
+### Codex
+
+1. Open **Plugins** in the Codex or ChatGPT desktop app.
+2. Choose **Add marketplace** and paste the repository URL (or `ConradHua/wms-ai-coding-guideline`).
+3. Install `wms-ai-coding-guideline` from the new marketplace.
+4. **Start a new conversation** so the plugin loads.
+
+You can also add the source from the CLI, then install by the name it prints:
+
+```bash
+codex plugin marketplace add ConradHua/wms-ai-coding-guideline
+codex plugin list
+codex plugin add <plugin-name@marketplace-name>
+```
+
+After the plugin is installed, open the repository you actually want to develop and tell the AI: "Set up the WMS development environment." That starts `wms-develop-setup`.
+
+## The important skill: wms-develop-setup
+
+This is the entry point of the whole guideline. It configures **only the current repository**. It does not change global settings on your machine (such as `~/.cursor` or `~/.copilot`).
+
+It confirms your choices first, then shows a complete write plan. It does not create or edit any file until you explicitly approve. Existing content is merged. It is not overwritten in silence.
+
+### What it does
+
+It always prepares two things: `AGENTS.md` and `docs/adr/`. `AGENTS.md` comes first.
+
+#### `AGENTS.md`: the standing instructions the AI reads
+
+In AI coding, the model does not automatically remember this project's rules. Every new chat is like a new teammate walking in: it does not know whether to answer in Chinese or English, which business terms are already settled, or which development notes to read.
+
+`AGENTS.md` is that standing document at the repository root. Cursor, Copilot, and Codex read it when they open the project. Think of it as:
+
+> The house rules for AI in this repository — how to talk, when to stop and ask, and where the domain notes live.
+
+`wms-develop-setup` usually writes three kinds of content:
+
+1. **Communication rules**: Chinese by default, lead with the conclusion. Keep the explanation simple. Do not lower the quality of the code.
+2. **Domain-modeling triggers**: when the AI should ask whether to record a term or an architecture decision (see `domain-modeling` below).
+3. **Domain instruction routing table** (optional): which domain notes are installed and where the files are. All three platforms follow this table. They do not depend on a filename happening to match a glob.
+
+It also prepares `docs/adr/` for later architecture decisions. An empty `GLOSSARY.md` is not created ahead of time. The glossary appears when there is a real term to record.
+
+The next three items are optional. Take all of them, some of them, or none.
+
+| What you select | Where it is written |
 |---|---|
-| 业务开发说明（`sap-rfc` / `oracle` / `rest-api`） | Copilot：`.github/instructions/`；Cursor：`.cursor/rules/`；Codex：`docs/ai-instructions/`。同时在 `AGENTS.md` 里加一张路由表，三个平台都会跟着读。 |
-| 治理钩子 `governance-audit` | 脚本放在 `hooks/governance-audit/`。Copilot 写入 `.github/hooks/governance-audit.json`，Cursor 写入 `.cursor/hooks.json`。Codex 不支持，会直接跳过。需要本机有 Node.js。 |
-| 只读审查代理（`code-reviewer` / `security-auditor`） | Copilot：`.github/agents/`；Cursor：`.cursor/agents/`；Codex：`.codex/agents/`。 |
+| Domain development instructions (`sap-rfc` / `oracle` / `rest-api`) | Copilot: `.github/instructions/`. Cursor: `.cursor/rules/`. Codex: `docs/ai-instructions/`. A routing table is also added to `AGENTS.md`. |
+| Governance hooks (`governance-audit`) | Scripts go in `hooks/governance-audit/`. Copilot writes `.github/hooks/governance-audit.json`. Cursor writes `.cursor/hooks.json`. Codex writes `.codex/hooks.json`. Node.js is required. |
+| Read-only review agents (`code-reviewer` / `security-auditor`) | Copilot: `.github/agents/`. Cursor: `.cursor/agents/`. Codex: `.codex/agents/`. |
 
-### 怎么用
+### How to use it
 
-在目标仓库里对 AI 说下面任意一句，它就会启动这个技能：
+In the target repository, say any of these and the skill starts:
 
-- 「帮我设置 WMS 开发环境」
-- 「初始化这个仓库的 `AGENTS.md`」
-- 「安装 SAP RFC / Oracle / REST API 开发说明」
-- 「安装 governance-audit 钩子」
-- 「把 code-reviewer 和 security-auditor 加到这个项目」
+- "Set up the WMS development environment."
+- "Initialize `AGENTS.md` for this repository."
+- "Install the SAP RFC / Oracle / REST API development instructions."
+- "Install the governance-audit hooks."
+- "Add code-reviewer and security-auditor to this project."
 
-它会按顺序问你这几件事，然后停下来等你点头：
+It then asks, in order, and waits for your answer:
 
-1. 要配置哪个仓库根目录。
-2. 是否写入 `AGENTS.md` 和 `docs/adr/`。
-3. 当前在做哪一块：`sap-rfc`、`oracle`、`rest-api`，或都不要。
-4. 要打开哪些治理钩子。选了许可证检查时，再选 `warn`（只警告）或 `block`（发现违规就拦住）。
-5. 要部署哪些审查代理。
-6. 要生成到哪些平台。只有第 3、4、5 步至少选了一项才会问。
-7. 展示将要创建或修改的文件清单。你同意之后才写入。
+1. Which repository root to configure.
+2. Whether to write `AGENTS.md` and `docs/adr/`.
+3. Which area you are working on: `sap-rfc`, `oracle`, `rest-api`, or none.
+4. Which governance hooks to enable. If license checking is selected, also choose `warn` (warn only) or `block` (stop on a violation).
+5. Which review agents to deploy.
+6. Which platforms to generate for. This is asked only when step 3, 4, or 5 selected at least one item.
+7. The full list of files to create or change. Nothing is written until you approve that list.
 
-## 插件里另外两个技能
+## Two other skills in the plugin
 
-这两个随插件一起可用，不用先跑上面的安装。`AGENTS.md` 里也会提醒 AI 在该问的时候来问你。
+These two come with the plugin. You do not need to run setup first. The triggers in `AGENTS.md` tell the AI when it should ask you.
 
-### 领域建模（domain-modeling）
+### Domain modeling (`domain-modeling`)
 
-把业务词写进 `GLOSSARY.md`，把难改回来的设计取舍写成 `docs/adr/` 里的 ADR。
+#### What it does in AI coding
 
-讨论新名词、实体关系或架构取舍时，AI 会问你要不要记下来。你同意之后才写文件。
+When an AI writes business code, the usual failure is not syntax. It is **the same word meaning two different things**:
 
-### 安全加固（security-and-hardening）
+- You say "cancel." The AI treats it as voiding the whole order. The code actually means a partial return.
+- Last week you defined "goods receipt event." In a new chat the AI invents another name.
+- You chose a message queue over a synchronous call. Three months later nobody remembers why, and the AI has no way to know.
 
-处理用户输入、登录、会话、敏感数据或外部系统时，先划清信任边界，再写代码。
+Domain modeling writes the business language and the hard-to-reverse design decisions into the repository, so later AI sessions and people share one dictionary.
 
-做这些功能时直接说需求即可，不用点名这个技能。
+#### What it maintains
 
-## 装进仓库之后才有的能力
+| File | What it records | What it leaves out |
+|---|---|---|
+| `GLOSSARY.md` | Precise business terms, such as "goods receipt event = one verifiable WMS receipt fact" | Implementation details such as class names, table layouts, and API paths |
+| `docs/adr/*.md` | Decisions that are hard to reverse, confusing without context, and the result of a real trade-off | Small fixes and ordinary choices that are obvious from the code |
 
-下面这些不是插件一装就出现在你的项目里，而是由 `wms-develop-setup` 按你的选择部署。
+While you talk, the AI asks when a word is fuzzy, checks the existing glossary, presses on boundary cases, and points out when your explanation disagrees with the code. After a term is settled, it asks whether to write it down. It edits the file only after you agree.
 
-### 两个只读审查代理
+#### When it shows up
 
-- **code-reviewer**：从正确性、可读性、架构、安全、性能五个方面看改动。
-- **security-auditor**：专门找可利用的漏洞，并给出加固建议。
+- A requirement or design discussion introduces a new term, a fuzzy term, or a naming clash.
+- You are defining entity boundaries, state transitions, or key business rules.
+- You are making an architecture choice that will be hard to undo. That may be an ADR.
 
-在对话里点名它们。它们只给意见，不改代码。Copilot 和 Cursor 也可以直接用插件自带的同名代理；Codex 需要先部署到仓库。
+It usually stays quiet during small bug fixes, copy changes, and mechanical refactors. You can also say "add this term to the glossary" or "record an ADR."
 
-### 三份领域开发说明
+### Security and hardening (`security-and-hardening`)
 
-AI 改到对应代码时会读取：
+When the work touches user input, login, sessions, sensitive data, or external systems, draw the trust boundary first, then write the code.
 
-- **sap-rfc**：SAP NCo、BAPI 收货、批次分类、入站 RFC、字段映射和失败恢复。
-- **oracle**：Oracle SQL、ASN 同步、物料可用量、ODP.NET / EF Core、幂等和事务。
-- **rest-api**：ASP.NET Core 接口、PDA 收货、DTO、身份权限和幂等。
+Just describe the feature. You do not need to name this skill.
 
-### 治理钩子（governance-audit）
+## Capabilities that appear only after setup
 
-AI 执行过程中自动检查。Copilot 和 Cursor 可用，Codex 不支持。
+These do not show up in your project just because the plugin is installed. `wms-develop-setup` deploys the ones you select.
 
-- **threat-protection**：发现高危请求先停住，等你明确确认或取消，期间不放行工具调用。
-- **prompt-redaction**：从发给模型的内容里遮掉识别到的凭证和个人信息。仅 Copilot。
-- **audit-log**：记录会话、提示和策略决定。
-- **tool-audit**：记录工具调用、参数摘要和结果。
-- **license-check**：回合结束时检查新依赖的许可证（如 GPL / AGPL），按你选的 `warn` 或 `block` 处理。
+### Two read-only review agents
 
-日志写在 `logs/copilot/governance/`。安装时会问你要不要把这个目录加进 `.gitignore`。
+- **code-reviewer**: reviews a change for correctness, readability, architecture, security, and performance.
+- **security-auditor**: looks for exploitable issues and recommends hardening.
+
+Name them in the chat. They give feedback and do not edit code. Copilot and Cursor can also use the same agents shipped with the plugin. Codex needs them deployed into the repository first.
+
+### Three domain development instructions
+
+The AI reads the matching note when it edits that kind of code:
+
+- **sap-rfc**: SAP NCo, BAPI goods receipt, batch classification, inbound RFC, field mapping, and failure recovery.
+- **oracle**: Oracle SQL, ASN sync, material availability, ODP.NET / EF Core, idempotency, and transactions.
+- **rest-api**: ASP.NET Core APIs, PDA goods receipt, DTOs, authentication and authorization, and idempotency.
+
+### Governance hooks (`governance-audit`)
+
+These checks run while the AI works. Node.js is required.
+
+- **threat-protection**: stops a high-risk request until you explicitly confirm or cancel it, and blocks tool calls while it is pending.
+- **prompt-redaction**: masks recognized credentials and personal data in text sent to the model. Copilot only.
+- **audit-log**: records the session, prompts, and policy decisions.
+- **tool-audit**: records tool calls, argument previews, and outcomes.
+- **license-check**: at the end of a turn, checks licenses of newly added dependencies (such as GPL / AGPL) and follows the `warn` or `block` mode you chose.
+
+Logs are written to `logs/copilot/governance/`. During setup you are asked whether to add that directory to `.gitignore`.
