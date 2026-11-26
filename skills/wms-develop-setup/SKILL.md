@@ -36,7 +36,23 @@ All runtime assets are bundled inside this skill (self-contained):
 
 ## Setup Confirmation Checklist (Task List)
 
-Before creating or editing any files, track and resolve every applicable item in this checklist with the user (use a task list / checklist so no confirmation step is skipped):
+Before creating or editing any files, track every applicable item below and resolve it with the user. Use a task list so no confirmation step is skipped.
+
+### How to ask
+
+A choice the user already stated in the request is answered. Send only the still-open choices.
+
+For each still-open choice, call this session's structured question tool: the host tool that renders known options as selectable controls (single-select or multi-select) and waits for the answer. Match it by that behavior, under whatever name this host gives it.
+
+- The chat message states the one-line reason. The tool call carries every option.
+- One checklist choice per call. Wait for the answer before the next choice.
+- Items that allow any combination (3, 4, 5, 6) are multi-select and include an explicit skip option (`none`).
+- Yes/no confirmations and `LICENSE_MODE` (`warn` or `block`) are single-select.
+- Item 1: when `<workspace-root>` is already unambiguous, state the path and mark the item done. When more than one root is plausible, offer those folders as the options.
+- Item 7: the write-plan (paths, hook command, generated JSON, conflicts) stays in the chat message. The approve / revise decision goes through the structured question tool. Wait for that answer before writing any file.
+- When this session has no tool that renders selectable answers, ask the same options in chat and wait for the reply.
+
+An item is done only after the user has answered it.
 
 - [ ] **1. Target workspace root**: Confirm `<workspace-root>` (workspace-only; never deploy globally).
 - [ ] **2. Base workspace setup (**`AGENTS.md` **+** `docs/adr/`**)**: Confirm creating or merging `Communication Guidelines` and `Domain Modeling` into `<workspace-root>/AGENTS.md` and preparing `<workspace-root>/docs/adr/` (without pre-creating an empty `GLOSSARY.md`).
@@ -48,7 +64,7 @@ Before creating or editing any files, track and resolve every applicable item in
 
 ## Workflow
 
-1. **Work through checklist items 1–6 with the user.**
+1. **Work through checklist items 1–6 with the user, asking each still-open choice the way "How to ask" specifies.**
    - **Workspace root (Item 1):** Resolve `<workspace-root>`. If the workspace has multiple roots or is ambiguous, ask which folder to target. If the user informally asks for `agent.md` or `AGENT.md`, note that `AGENTS.md` is the standard filename and confirm `<workspace-root>/AGENTS.md`.
    - **Workspace-only restriction:** Never install or write files to global/user-level locations (such as `~`, `~/.codex/`, `~/.copilot/`, `~/.cursor/`, or `~/.claude/`). If the user asks for a global deployment, decline and explain that this skill only configures the current workspace.
    - **Domain development instructions (Item 3):** Ask which development focus area(s) to deploy on demand—any combination or none to skip:
